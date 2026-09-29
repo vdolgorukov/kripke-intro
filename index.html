@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Формулы в мире w₁</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+:root{
+  --paper:#ffffff;
+  --text:#22252d;
+  --muted:#5f6576;
+  --stroke:#000000;
+  --node:#e1e5f2;
+  --rule:#dde0e8;
+  --rule-strong:#a3a9b8;
+  --accent:#34438b;
+  --on-accent:#ffffff;
+  --ok:#2c7a4b;
+  --err:#b53a2f;
+  --tint:#f3f5fa;
+  --node-hl:#a9b4dc;
+  --sel:#232d63;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#16181d; --text:#e4e6ec; --muted:#9aa0b1; --stroke:#e8eaf0; --node:#2f3651;
+    --rule:#2d313c; --rule-strong:#565c6e; --accent:#a4b3f2; --on-accent:#141826;
+    --ok:#66c48b; --err:#f08172; --tint:#1e2129; --node-hl:#5b6cb4; --sel:#c9d2fa; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#16181d; --text:#e4e6ec; --muted:#9aa0b1; --stroke:#e8eaf0; --node:#2f3651;
+  --rule:#2d313c; --rule-strong:#565c6e; --accent:#a4b3f2; --on-accent:#141826;
+  --ok:#66c48b; --err:#f08172; --tint:#1e2129; --node-hl:#5b6cb4; --sel:#c9d2fa; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  margin:0;background:var(--paper);color:var(--text);
+  font-family:"PT Serif",Georgia,"Times New Roman",serif;
+  font-size:1.0625rem;line-height:1.6;-webkit-text-size-adjust:100%;
+}
+main{max-width:1120px;margin:0 auto;padding:2.25rem 1.5rem 3rem}
+h1{font-size:clamp(1.55rem,1.2rem + 1.4vw,2.1rem);line-height:1.2;font-weight:700;margin:0 0 .45rem;letter-spacing:-.005em}
+.lead{margin:0;color:var(--muted);max-width:66ch}
+.rules{margin:1rem 0 0;padding:.75rem 1rem;background:var(--tint);border-radius:8px;max-width:66ch;font-size:.97rem}
+.rules p{margin:0}
+.rules p + p{margin-top:.3rem}
+header{margin-bottom:2rem;padding-bottom:1.25rem;border-bottom:1px solid var(--rule)}
+
+.btn{
+  font:inherit;font-size:.97rem;min-height:40px;padding:.4rem 1rem;border-radius:6px;cursor:pointer;
+  border:1.5px solid var(--accent);background:transparent;color:var(--accent);
+}
+.btn:hover{background:var(--tint)}
+.btn.sm{min-height:32px;padding:.1rem .75rem;font-size:.88rem}
+.btn.primary{background:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:focus-visible,.linkbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.workspace{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:2.75rem;align-items:start}
+.figcol{position:sticky;top:1rem}
+@media (max-width:880px){
+  .workspace{grid-template-columns:minmax(0,1fr);gap:1.75rem}
+  .figcol{position:static}
+}
+
+figure{margin:0}
+#kripke{display:block;width:100%;max-width:330px;max-height:calc(100vh - 7rem);height:auto;margin:0 auto;color:var(--stroke);touch-action:manipulation}
+#kripke .edge{fill:none;stroke:var(--stroke);stroke-width:1.35}
+#kripke .ah{fill:var(--stroke)}
+#kripke .world{fill:var(--node);stroke:var(--stroke);stroke-width:1.4}
+#kripke .lbl-text{font-family:"PT Serif",Georgia,serif;font-style:italic;fill:var(--stroke)}
+#kripke .ul{stroke:var(--stroke);stroke-width:1.2}
+/* мир — кнопка: при наведении или нажатии подсвечиваются миры, достижимые из него */
+#kripke .wg{cursor:pointer;outline:none}
+#kripke .wg .hit{fill:transparent;stroke:none}
+#kripke .wg:hover .hit{fill:var(--tint)}
+#kripke .wg:focus-visible .hit{stroke:var(--accent);stroke-width:2}
+#kripke .wg.sel .hit{fill:var(--sel)}
+#kripke .wg.sel .wname{color:var(--on-accent)}
+#kripke .wg.sel .lbl-text{fill:var(--on-accent)}
+#kripke .wg.sel .ul{stroke:var(--on-accent)}
+#kripke .world.reach{fill:var(--node-hl)}
+.reach-note{text-align:center;font-size:.95rem;margin:.35rem 0 0;min-height:1.6em}
+.reach-note.hint-on{color:var(--muted);font-size:.88rem}
+
+.m{display:inline-block;line-height:1}
+.m svg{overflow:visible}
+.m-fallback{font-style:normal}
+.m-fallback i{font-style:italic}
+
+.group{margin:0 0 1.75rem}
+.group h2{font-size:1.08rem;font-weight:700;margin:0 0 .15rem}
+.group .gnote{margin:0 0 .35rem;color:var(--muted);font-size:.92rem}
+.rows{list-style:none;margin:0;padding:0}
+.row{border-bottom:1px solid var(--rule);padding:.45rem 0}
+.rowmain{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.num{color:var(--muted);font-variant-numeric:tabular-nums;min-width:2em}
+.formula{font-size:1.12rem;white-space:nowrap;flex:1 1 8rem}
+.tf{display:inline-flex;border:1.5px solid var(--rule-strong);border-radius:6px;overflow:hidden}
+.tf label{position:relative;display:grid;place-items:center;min-width:5.6em;min-height:38px;padding:0 .6rem;font-size:.92rem;color:var(--muted);cursor:pointer}
+.tf label + label{border-left:1.5px solid var(--rule-strong)}
+.tf input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.tf label:hover{color:var(--accent)}
+.tf label:has(input:checked){background:var(--accent);color:var(--on-accent)}
+.tf label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:-3px}
+.row.ok .tf label:has(input:checked){background:var(--ok)}
+.row.bad .tf label:has(input:checked){background:var(--err)}
+.status{display:flex;gap:.9rem;align-items:center;margin:.25rem 0 0 2.75em;font-size:.9rem;min-height:0}
+.status:empty{display:none}
+.res.ok{color:var(--ok)}
+.res.bad{color:var(--err)}
+.res.muted{color:var(--muted)}
+.linkbtn{font:inherit;font-size:inherit;background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.why{margin:.4rem 0 .2rem 2.75em;padding:.6rem .85rem;background:var(--tint);border-radius:6px;font-size:.95rem}
+.why[hidden]{display:none}
+.why p{margin:0}
+.why p + p{margin-top:.35rem}
+.why .sub{padding-left:1.1rem;border-left:2px solid var(--rule-strong);margin-left:.2rem}
+.gactions{margin-top:.6rem;display:flex;align-items:center;gap:.9rem;flex-wrap:wrap}
+.gsum{font-size:.92rem}
+.actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:.5rem}
+#summary{margin:1rem 0 0;font-size:1.05rem;min-height:1.6em}
+#summary .ok{color:var(--ok)}
+
+@media (max-width:520px){
+  main{padding:1.5rem 1rem 2.5rem}
+  .status,.why{margin-left:0}
+  .tf label{min-width:4.8em}
+}
+</style>
+<script>
+window.MathJax = {
+  svg: { fontCache: 'none' },
+  options: { enableMenu: false },
+  startup: {
+    typeset: false,
+    ready: function () {
+      MathJax.startup.defaultReady();
+      MathJax.startup.promise.then(function () {
+        window.__mjReady = true;
+        if (typeof window.__onMathReady === 'function') window.__onMathReady();
+      });
+    }
+  }
+};
+</script>
+<script async id="MathJax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js"></script>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Истинна ли формула в мире <i>w</i><sub>1</sub>?</h1>
+    <p class="lead">Модель Крипке из упражнения 8.19. Для каждой формулы решите, истинна она в мире <i>w</i><sub>1</sub> или ложна, и проверьте ответ. Наведите указатель на мир (или нажмите на него), чтобы увидеть, какие миры достижимы из него.</p>
+    <div class="rules" id="rules"></div>
+  </header>
+
+  <div class="workspace">
+    <section class="figcol" aria-label="Модель">
+      <figure>
+        <svg id="kripke" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Модель Крипке"></svg>
+        <p class="reach-note" id="reach-note" aria-live="polite"></p>
+      </figure>
+    </section>
+
+    <section aria-label="Формулы">
+      <div id="groups"></div>
+      <div class="actions">
+        <button class="btn primary" id="check" type="button">Проверить все</button>
+        <button class="btn" id="reset" type="button">Начать заново</button>
+      </div>
+      <p id="summary" aria-live="polite"></p>
+    </section>
+  </div>
+</main>
+
+<script id="core">
+/* ================= Логика (без DOM) ================= */
+var Core = (function () {
+  'use strict';
+  // миры w1…w7 — индексы 0…6
+  var MODEL = {
+    n: 7,
+    val: [{ p: true, q: false }, { p: false, q: true }, { p: true, q: true }, { p: true, q: false },
+      { p: true, q: true }, { p: true, q: true }, { p: true, q: true }],
+    succ: [[1, 2], [3, 4], [5, 6], [], [], [], []]
+  };
+  // расположение как на рисунке в книге
+  var LAYOUT = [
+    { x: 0, y: 0 }, { x: 150, y: -150 }, { x: 150, y: 148 },
+    { x: 250, y: -250 }, { x: 250, y: -50 }, { x: 250, y: 48 }, { x: 250, y: 248 }
+  ];
+
+  var P = { t: 'p' }, Q = { t: 'q' };
+  function mk(t, a, b) { return { t: t, a: a, b: b }; }
+  var BASE = [P, Q, mk('and', P, Q), mk('imp', P, Q), mk('imp', Q, P)];
+  // группы по пять формул, как в упражнении: 1–5, 6–10, …, 31–35
+  var GROUPS = [
+    { pre: [], title: 'Без модальностей', note: 'Смотрим только на сам мир w₁.' },
+    { pre: ['box'], title: 'Формулы вида □φ', note: 'φ должна быть истинна во всех мирах, достижимых из w₁.' },
+    { pre: ['dia'], title: 'Формулы вида ◇φ', note: 'φ должна быть истинна хотя бы в одном мире, достижимом из w₁.' },
+    { pre: ['dia', 'dia'], title: 'Формулы вида ◇◇φ', note: 'Есть путь из двух шагов из w₁ в мир, где φ истинна.' },
+    { pre: ['box', 'box'], title: 'Формулы вида □□φ', note: 'φ истинна во всех мирах, куда из w₁ можно попасть ровно за два шага.' },
+    { pre: ['dia', 'box'], title: 'Формулы вида ◇□φ', note: 'Есть достижимый из w₁ мир, в котором истинна □φ.' },
+    { pre: ['box', 'dia'], title: 'Формулы вида □◇φ', note: 'Во всех достижимых из w₁ мирах истинна ◇φ.' }
+  ];
+  GROUPS.forEach(function (g) {
+    g.formulas = BASE.map(function (f) {
+      for (var i = g.pre.length - 1; i >= 0; i--) f = mk(g.pre[i], f);
+      return f;
+    });
+  });
+
+  function evalF(f, w) {
+    switch (f.t) {
+      case 'p': case 'q': return MODEL.val[w][f.t];
+      case 'and': return evalF(f.a, w) && evalF(f.b, w);
+      case 'imp': return !evalF(f.a, w) || evalF(f.b, w);
+      case 'box': return MODEL.succ[w].every(function (v) { return evalF(f.a, v); });
+      case 'dia': return MODEL.succ[w].some(function (v) { return evalF(f.a, v); });
+    }
+    throw new Error('unknown ' + f.t);
+  }
+  var OPS = { and: ['\\wedge', '∧'], imp: ['\\to', '→'] };
+  function toTex(f, nested) {
+    switch (f.t) {
+      case 'p': case 'q': return f.t;
+      case 'box': return '\\Box ' + toTex(f.a, true);
+      case 'dia': return '\\Diamond ' + toTex(f.a, true);
+      default:
+        var s = toTex(f.a, true) + ' ' + OPS[f.t][0] + ' ' + toTex(f.b, true);
+        return nested ? '(' + s + ')' : s;
+    }
+  }
+  function toTxt(f, nested) {
+    switch (f.t) {
+      case 'p': case 'q': return f.t;
+      case 'box': return '□' + toTxt(f.a, true);
+      case 'dia': return '◇' + toTxt(f.a, true);
+      default:
+        var s = toTxt(f.a, true) + ' ' + OPS[f.t][1] + ' ' + toTxt(f.b, true);
+        return nested ? '(' + s + ')' : s;
+    }
+  }
+
+  // Разбор ответа: список абзацев, каждый — массив кусков (строка или {f} / {w} / {ws});
+  // абзацы с sub: true — пояснение для внутренней модальной формулы.
+  function explain(f, w, depth) {
+    var out = [], TV = function (b) { return b ? 'истинна' : 'ложна'; };
+    if (f.t === 'box' || f.t === 'dia') {
+      var s = MODEL.succ[w], inner = f.a, res = evalF(f, w);
+      if (!s.length) {
+        out.push({ sub: depth > 0, parts: [{ w: w }, ' — тупик: из него не достижим ни один мир, поэтому ', { f: f },
+          f.t === 'box' ? ' истинна (проверять нечего).' : ' ложна (нет ни одного мира).'] });
+        return out;
+      }
+      var parts = ['Из ', { w: w }, ' достижимы ', { ws: s }, '. ', { f: inner }, ': '];
+      s.forEach(function (v, i) { parts.push(i ? ', в ' : 'в ', { w: v }, ' — ' + TV(evalF(inner, v))); });
+      parts.push('. ');
+      if (f.t === 'box') {
+        parts.push(res ? 'Во всех достижимых мирах истинна, значит ' : 'Есть достижимый мир, где она ложна, значит ');
+      } else {
+        parts.push(res ? 'Есть достижимый мир, где она истинна, значит ' : 'Ни в одном достижимом мире она не истинна, значит ');
+      }
+      parts.push({ f: f }, ' в ', { w: w }, ' ' + TV(res) + '.');
+      out.push({ sub: depth > 0, parts: parts });
+      if (inner.t === 'box' || inner.t === 'dia') {
+        s.forEach(function (v) { out = out.concat(explain(inner, v, depth + 1)); });
+      }
+      return out;
+    }
+    var atoms = ['p', 'q'];
+    var ap = ['В ', { w: w }, ': '];
+    atoms.forEach(function (a, i) { ap.push(i ? ', ' : '', { f: { t: a } }, ' — ' + TV(MODEL.val[w][a])); });
+    if (f.t === 'p' || f.t === 'q') ap.push('.');
+    else ap.push(', поэтому ', { f: f }, ' ' + TV(evalF(f, w)) + '.');
+    out.push({ sub: depth > 0, parts: ap });
+    return out;
+  }
+
+  function selfTest() {
+    // ответы, проверенные вручную по рисунку
+    var want = 'TFFFT' + 'FTFTF' + 'TTTTT' + 'TTTTT' + 'TFFFT' + 'TTTTT' + 'TTTTT';
+    var got = '';
+    GROUPS.forEach(function (g) { g.formulas.forEach(function (f) { got += evalF(f, 0) ? 'T' : 'F'; }); });
+    if (got !== want) throw new Error('selfTest: ' + got + ' != ' + want);
+    return got.length;
+  }
+
+  return { MODEL: MODEL, LAYOUT: LAYOUT, GROUPS: GROUPS, evalF: evalF, toTex: toTex, toTxt: toTxt, explain: explain, selfTest: selfTest };
+})();
+if (typeof module !== 'undefined') module.exports = Core;
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var M = Core.MODEL, SVGNS = 'http://www.w3.org/2000/svg';
+  var mathOn = !!window.__mjReady;
+
+  function svgEl(tag, attrs) {
+    var e = document.createElementNS(SVGNS, tag);
+    if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function fx(v) { return (Math.round(v * 10) / 10).toString(); }
+  function worldTex(i) { return 'w_{' + (i + 1) + '}'; }
+  function worldTxt(i) { return 'w' + (i + 1); }
+  function worldHtml(i) { return '<i>w</i><sub>' + (i + 1) + '</sub>'; }
+  function fHtml(f) {
+    return Core.toTxt(f, false).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\b([pq])\b/g, '<i>$1</i>');
+  }
+
+  // Формула в HTML: MathJax (если загрузился) или запасной текст
+  function mathSpan(tex, fallbackHtml, label) {
+    var span = document.createElement('span');
+    span.className = 'm';
+    if (mathOn) {
+      try {
+        var svg = MathJax.tex2svg(tex, { display: false }).querySelector('svg');
+        if (svg) {
+          svg.setAttribute('aria-hidden', 'true');
+          svg.removeAttribute('role');
+          span.appendChild(svg);
+          span.setAttribute('role', 'img');
+          span.setAttribute('aria-label', label);
+          return span;
+        }
+      } catch (e) { /* запасной вариант ниже */ }
+    }
+    span.classList.add('m-fallback');
+    span.innerHTML = fallbackHtml;
+    return span;
+  }
+  function fSpan(f) { return mathSpan(Core.toTex(f, false), fHtml(f), Core.toTxt(f, false)); }
+  function wSpan(w) { return mathSpan(worldTex(w), worldHtml(w), worldTxt(w)); }
+  function wsSpan(ws) {
+    return mathSpan(ws.map(worldTex).join(', '), ws.map(worldHtml).join(', '), ws.map(worldTxt).join(', '));
+  }
+
+  // Подпись внутри SVG-рисунка
+  function svgLabel(tex, plain, sub, fs) {
+    if (mathOn) {
+      try {
+        var s = MathJax.tex2svg(tex, { display: false }).querySelector('svg');
+        var vb = s.getAttribute('viewBox').trim().split(/[\s,]+/).map(Number);
+        var w = vb[2] / 1000 * fs, h = vb[3] / 1000 * fs;
+        s.removeAttribute('style');
+        s.removeAttribute('role');
+        s.setAttribute('width', fx(w));
+        s.setAttribute('height', fx(h));
+        s.setAttribute('overflow', 'visible');
+        s.setAttribute('aria-hidden', 'true');
+        return { el: s, w: w, h: h, place: function (cx, cy) { s.setAttribute('x', fx(cx - w / 2)); s.setAttribute('y', fx(cy - h / 2)); } };
+      } catch (e) { /* запасной вариант ниже */ }
+    }
+    var t = svgEl('text', { 'class': 'lbl-text', 'font-size': fs, 'text-anchor': 'middle', 'dominant-baseline': 'central' });
+    var w2;
+    if (sub) {
+      var a = svgEl('tspan'); a.textContent = plain;
+      var b = svgEl('tspan', { 'font-size': fx(fs * 0.7), 'font-style': 'normal', dy: fx(fs * 0.28) }); b.textContent = sub;
+      t.appendChild(a); t.appendChild(b);
+      w2 = fs * (0.6 * plain.length + 0.4 * sub.length);
+    } else {
+      t.textContent = plain;
+      w2 = fs * 0.48 * plain.length;
+    }
+    return { el: t, w: w2, h: fs, place: function (cx, cy) { t.setAttribute('x', fx(cx)); t.setAttribute('y', fx(cy)); } };
+  }
+
+  /* ----- рисунок ----- */
+  function drawModel() {
+    var pos = Core.LAYOUT, R = 30, ARROW = 4, svg = document.getElementById('kripke');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var defs = svgEl('defs');
+    var marker = svgEl('marker', { id: 'ah', viewBox: '-6 -5 11 10', refX: 0, refY: 0, markerWidth: 11, markerHeight: 10, markerUnits: 'userSpaceOnUse', orient: 'auto', overflow: 'visible' });
+    marker.appendChild(svgEl('path', { d: 'M4,0 L-5.2,-3.7 L-2.8,0 L-5.2,3.7 Z', 'class': 'ah' }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+    var gE = svgEl('g'), gN = svgEl('g');
+    svg.appendChild(gE); svg.appendChild(gN);
+
+    M.succ.forEach(function (list, i) {
+      list.forEach(function (j) {
+        var a = pos[i], b = pos[j], th = Math.atan2(b.y - a.y, b.x - a.x), c = Math.cos(th), s = Math.sin(th);
+        gE.appendChild(svgEl('path', {
+          d: 'M' + fx(a.x + c * R) + ',' + fx(a.y + s * R) + ' L' + fx(b.x - c * (R + ARROW)) + ',' + fx(b.y - s * (R + ARROW)),
+          'class': 'edge', 'marker-end': 'url(#ah)'
+        }));
+      });
+    });
+
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    function ext(x, y) { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
+    for (var i = 0; i < M.n; i++) {
+      var p = pos[i];
+      var g = svgEl('g', { 'class': 'wg', 'data-w': i, role: 'button', tabindex: 0 });
+      // имя мира под кружком, как в книге
+      var wl = svgLabel(worldTex(i), 'w', String(i + 1), 20);
+      var by = p.y + R + 6 + wl.h / 2;
+      var hit = svgEl('rect', { 'class': 'hit', x: fx(p.x - wl.w / 2 - 6), y: fx(by - wl.h / 2 - 4), width: fx(wl.w + 12), height: fx(wl.h + (i === 0 ? 12 : 8)), rx: 7 });
+      g.appendChild(hit);
+      g.appendChild(svgEl('circle', { cx: p.x, cy: p.y, r: R, 'class': 'world', 'data-w': i }));
+      var atoms = ['p', 'q'].filter(function (a) { return M.val[i][a]; });
+      if (atoms.length) {
+        var lab = svgLabel(atoms.join(', '), atoms.join(', '), null, 20);
+        lab.place(p.x, p.y);
+        g.appendChild(lab.el);
+      }
+      var wg = svgEl('g', { 'class': 'wname' });
+      wl.place(p.x, by);
+      wg.appendChild(wl.el);
+      // w1 подчёркнут: в нём оцениваются формулы
+      if (i === 0) wg.appendChild(svgEl('line', { 'class': 'ul', x1: fx(p.x - wl.w / 2), x2: fx(p.x + wl.w / 2), y1: fx(by + wl.h / 2 + 3), y2: fx(by + wl.h / 2 + 3) }));
+      g.appendChild(wg);
+      gN.appendChild(g);
+      ext(p.x - R, p.y - R); ext(p.x + R, by + wl.h / 2 + 8);
+    }
+    var pad = 10;
+    svg.setAttribute('viewBox', [fx(minX - pad), fx(minY - pad), fx(maxX - minX + 2 * pad), fx(maxY - minY + 2 * pad)].join(' '));
+    applyReach();
+  }
+
+  /* ----- подсветка достижимых миров ----- */
+  // hover — мир под указателем или в фокусе, pinned — выбранный нажатием (для сенсорных экранов)
+  var hover = -1, pinned = -1;
+  function shown() { return hover >= 0 ? hover : pinned; }
+  function applyReach() {
+    var w0 = shown(), svg = document.getElementById('kripke');
+    var succ = w0 >= 0 ? M.succ[w0] : [];
+    Array.prototype.forEach.call(svg.querySelectorAll('.wg'), function (g) {
+      var w = +g.getAttribute('data-w');
+      g.classList.toggle('sel', w === w0);
+      g.setAttribute('aria-pressed', w === pinned ? 'true' : 'false');
+      g.setAttribute('aria-label', worldTxt(w) + ': показать миры, достижимые из него');
+    });
+    Array.prototype.forEach.call(svg.querySelectorAll('.world'), function (c) {
+      c.classList.toggle('reach', succ.indexOf(+c.getAttribute('data-w')) >= 0);
+    });
+    var note = document.getElementById('reach-note');
+    note.innerHTML = '';
+    note.classList.toggle('hint-on', w0 < 0);
+    if (w0 < 0) { note.textContent = 'Наведите указатель на мир, чтобы увидеть миры, достижимые из него.'; return; }
+    note.appendChild(document.createTextNode('Из '));
+    note.appendChild(wSpan(w0));
+    if (succ.length) {
+      note.appendChild(document.createTextNode(' достижимы: '));
+      note.appendChild(wsSpan(succ));
+    } else note.appendChild(document.createTextNode(' не достижим ни один мир'));
+  }
+  (function () {
+    var svg = document.getElementById('kripke');
+    function wOf(e) { var g = e.target.closest ? e.target.closest('.wg') : null; return g ? +g.getAttribute('data-w') : -1; }
+    svg.addEventListener('pointerover', function (e) {
+      if (e.pointerType !== 'mouse') return;
+      var w = wOf(e); if (w !== hover) { hover = w; applyReach(); }
+    });
+    svg.addEventListener('pointerleave', function (e) {
+      if (e.pointerType === 'mouse' && hover >= 0) { hover = -1; applyReach(); }
+    });
+    svg.addEventListener('click', function (e) {
+      var w = wOf(e);
+      pinned = w >= 0 && pinned !== w ? w : -1;
+      applyReach();
+    });
+    svg.addEventListener('focusin', function (e) { var w = wOf(e); if (w >= 0) { hover = w; applyReach(); } });
+    svg.addEventListener('focusout', function () { hover = -1; applyReach(); });
+    svg.addEventListener('keydown', function (e) {
+      var w = wOf(e);
+      if (w >= 0 && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pinned = pinned === w ? -1 : w; applyReach(); }
+      else if (e.key === 'Escape') { pinned = -1; hover = -1; applyReach(); }
+    });
+  })();
+
+  /* ----- формулы ----- */
+  var rows = [];   // { f, truth, answer: null|true|false, checked, open, gi }
+  Core.GROUPS.forEach(function (g, gi) {
+    g.formulas.forEach(function (f) { rows.push({ f: f, truth: Core.evalF(f, 0), answer: null, checked: false, open: false, gi: gi }); });
+  });
+
+  function renderRules() {
+    var box = document.getElementById('rules');
+    box.innerHTML = '';
+    var p1 = document.createElement('p'), p2 = document.createElement('p');
+    p1.appendChild(mathSpan('\\Box\\varphi', '□<i>φ</i>', '□φ'));
+    p1.appendChild(document.createTextNode(' истинна в мире, если '));
+    p1.appendChild(mathSpan('\\varphi', '<i>φ</i>', 'φ'));
+    p1.appendChild(document.createTextNode(' истинна во всех мирах, достижимых из него (в тупике — всегда истинна).'));
+    p2.appendChild(mathSpan('\\Diamond\\varphi', '◇<i>φ</i>', '◇φ'));
+    p2.appendChild(document.createTextNode(' истинна в мире, если '));
+    p2.appendChild(mathSpan('\\varphi', '<i>φ</i>', 'φ'));
+    p2.appendChild(document.createTextNode(' истинна хотя бы в одном мире, достижимом из него (в тупике — всегда ложна).'));
+    box.appendChild(p1); box.appendChild(p2);
+  }
+
+  function renderGroups() {
+    var host = document.getElementById('groups');
+    host.innerHTML = '';
+    var k = 0;
+    Core.GROUPS.forEach(function (g, gi) {
+      var sec = document.createElement('section');
+      sec.className = 'group';
+      var h = document.createElement('h2');
+      h.textContent = (k + 1) + '–' + (k + 5) + '. ' + g.title;
+      var note = document.createElement('p');
+      note.className = 'gnote'; note.textContent = g.note;
+      var ul = document.createElement('ul');
+      ul.className = 'rows';
+      g.formulas.forEach(function () {
+        var ri = k++, r = rows[ri];
+        var li = document.createElement('li');
+        li.className = 'row' + (r.checked && r.answer !== null ? (r.answer === r.truth ? ' ok' : ' bad') : '');
+        li.id = 'row-' + ri;
+        var main = document.createElement('div'); main.className = 'rowmain';
+        var num = document.createElement('span'); num.className = 'num'; num.textContent = (ri + 1) + '.';
+        var fm = document.createElement('span'); fm.className = 'formula'; fm.appendChild(fSpan(r.f));
+        var tf = document.createElement('span'); tf.className = 'tf'; tf.setAttribute('role', 'radiogroup');
+        tf.setAttribute('aria-label', 'Формула ' + (ri + 1) + ' в w1');
+        [[true, 'истинна'], [false, 'ложна']].forEach(function (o) {
+          var lab = document.createElement('label');
+          var inp = document.createElement('input');
+          inp.type = 'radio'; inp.name = 'f' + ri; inp.checked = r.answer === o[0];
+          inp.addEventListener('change', function () {
+            r.answer = o[0]; r.checked = false; r.open = false;
+            renderRow(ri);
+            renderSummary();
+          });
+          lab.appendChild(inp); lab.appendChild(document.createTextNode(o[1]));
+          tf.appendChild(lab);
+        });
+        main.appendChild(num); main.appendChild(fm); main.appendChild(tf);
+        li.appendChild(main);
+        li.appendChild(statusEl(ri));
+        li.appendChild(whyEl(ri));
+        ul.appendChild(li);
+      });
+      var ga = document.createElement('div'); ga.className = 'gactions';
+      var gb = document.createElement('button');
+      gb.type = 'button'; gb.className = 'btn sm'; gb.textContent = 'Проверить формулы ' + (k - 4) + '–' + k;
+      gb.addEventListener('click', function () { check(gi); });
+      var gs = document.createElement('span'); gs.className = 'gsum'; gs.id = 'gsum-' + gi; gs.setAttribute('aria-live', 'polite');
+      ga.appendChild(gb); ga.appendChild(gs);
+      sec.appendChild(h); sec.appendChild(note); sec.appendChild(ul); sec.appendChild(ga);
+      host.appendChild(sec);
+    });
+    renderSummary();
+  }
+
+  function statusEl(ri) {
+    var r = rows[ri], st = document.createElement('div');
+    st.className = 'status';
+    if (!r.checked) return st;
+    var res = document.createElement('span');
+    if (r.answer === null) { res.className = 'res muted'; res.textContent = 'нет ответа'; }
+    else if (r.answer === r.truth) { res.className = 'res ok'; res.textContent = 'Верно'; }
+    else { res.className = 'res bad'; res.textContent = 'Неверно'; }
+    st.appendChild(res);
+    if (r.answer !== null) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'linkbtn';
+      b.textContent = r.open ? 'Скрыть разбор' : 'Почему?';
+      b.setAttribute('aria-expanded', r.open ? 'true' : 'false');
+      b.setAttribute('aria-controls', 'why-' + ri);
+      b.addEventListener('click', function () { r.open = !r.open; renderRow(ri); document.querySelector('#row-' + ri + ' .linkbtn').focus(); });
+      st.appendChild(b);
+    }
+    return st;
+  }
+  function whyEl(ri) {
+    var r = rows[ri], box = document.createElement('div');
+    box.className = 'why'; box.id = 'why-' + ri; box.hidden = !r.open;
+    if (!r.open) return box;
+    Core.explain(r.f, 0, 0).forEach(function (para) {
+      var p = document.createElement('p');
+      if (para.sub) p.className = 'sub';
+      para.parts.forEach(function (x) {
+        if (typeof x === 'string') p.appendChild(document.createTextNode(x));
+        else if (x.f) p.appendChild(fSpan(x.f));
+        else if (x.ws) p.appendChild(wsSpan(x.ws));
+        else p.appendChild(wSpan(x.w));
+      });
+      box.appendChild(p);
+    });
+    return box;
+  }
+  function renderRow(ri) {
+    var r = rows[ri], li = document.getElementById('row-' + ri);
+    li.className = 'row' + (r.checked && r.answer !== null ? (r.answer === r.truth ? ' ok' : ' bad') : '');
+    li.replaceChild(statusEl(ri), li.querySelector('.status'));
+    li.replaceChild(whyEl(ri), li.querySelector('.why'));
+  }
+
+  function check(gi) {
+    rows.forEach(function (r, ri) {
+      if (gi === undefined || r.gi === gi) { r.checked = true; renderRow(ri); }
+    });
+    renderSummary();
+  }
+  function renderSummary() {
+    Core.GROUPS.forEach(function (g, gi) {
+      var mine = rows.filter(function (r) { return r.gi === gi; });
+      var el = document.getElementById('gsum-' + gi);
+      if (!mine.some(function (r) { return r.checked; })) { el.textContent = ''; el.className = 'gsum'; return; }
+      var good = mine.filter(function (r) { return r.checked && r.answer === r.truth; }).length;
+      el.textContent = 'Верно: ' + good + ' из 5';
+      el.className = 'gsum res ' + (good === 5 ? 'ok' : 'muted');
+    });
+    var sum = document.getElementById('summary');
+    var done = rows.filter(function (r) { return r.checked; });
+    if (!done.length) { sum.textContent = ''; return; }
+    var good = done.filter(function (r) { return r.answer === r.truth; }).length;
+    sum.innerHTML = '';
+    var s = document.createElement('span');
+    if (good === rows.length) s.className = 'ok';
+    s.textContent = 'Верно: ' + good + ' из ' + rows.length + (done.length < rows.length ? ' (проверено ' + done.length + ')' : '') + '.';
+    sum.appendChild(s);
+  }
+
+  document.getElementById('check').addEventListener('click', function () { check(); });
+  document.getElementById('reset').addEventListener('click', function () {
+    rows.forEach(function (r) { r.answer = null; r.checked = false; r.open = false; });
+    renderGroups();
+  });
+
+  function renderAll() { renderRules(); drawModel(); renderGroups(); }
+  window.__onMathReady = function () {
+    if (mathOn) return;
+    mathOn = true;
+    renderAll();
+  };
+  renderAll();
+})();
+</script>
+</body>
+</html>
