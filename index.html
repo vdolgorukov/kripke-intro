@@ -123,12 +123,35 @@ figure{margin:0}
 .why[hidden]{display:none}
 .why p{margin:0}
 .why p + p{margin-top:.35rem}
-.why .sub{padding-left:1.1rem;border-left:2px solid var(--rule-strong);margin-left:.2rem}
+.why .sub{padding-left:1.1rem;border-left:2px solid var(--rule-strong)}
 .gactions{margin-top:.6rem;display:flex;align-items:center;gap:.9rem;flex-wrap:wrap}
 .gsum{font-size:.92rem}
 .actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-top:.5rem}
 #summary{margin:1rem 0 0;font-size:1.05rem;min-height:1.6em}
 #summary .ok{color:var(--ok)}
+
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;margin-top:1rem}
+.vlabel{color:var(--muted)}
+.rm{font:inherit;font-size:1.1rem;line-height:1;width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;flex-shrink:0}
+.rm:hover{color:var(--err);background:var(--tint)}
+.rm:focus-visible{outline:2px solid var(--accent)}
+.custom{margin-top:1rem;padding:1rem;border:1px solid var(--rule);border-radius:8px;background:var(--tint)}
+.custom[hidden]{display:none}
+.custom label{display:block;color:var(--muted);margin-bottom:.35rem}
+.custom-row{display:flex;flex-wrap:wrap;gap:.5rem}
+.custom-row input{
+  flex:1 1 14rem;min-width:0;font:inherit;font-size:1.1rem;padding:.4rem .6rem;border:1.5px solid var(--rule-strong);border-radius:6px;
+  background:var(--paper);color:var(--text);
+}
+.custom-row input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.palette{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.6rem}
+.palette button{font:inherit;font-size:1.05rem;min-width:40px;min-height:40px;padding:0 .5rem;border:1.5px solid var(--rule-strong);border-radius:6px;background:var(--paper);color:var(--text);cursor:pointer}
+.palette button:hover{border-color:var(--accent);color:var(--accent)}
+.palette button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.palette .atom{font-style:italic}
+.preview{margin:.6rem 0 0;min-height:1.6em}
+.preview .err{color:var(--err)}
+.hint{margin:.5rem 0 0;color:var(--muted);font-size:.88rem}
 
 @media (max-width:520px){
   main{padding:1.5rem 1rem 2.5rem}
@@ -158,8 +181,12 @@ window.MathJax = {
 <main>
   <header>
     <h1>Истинна ли формула в мире <i>w</i><sub>1</sub>?</h1>
-    <p class="lead">Модель Крипке из упражнения 8.19. Для каждой формулы решите, истинна она в мире <i>w</i><sub>1</sub> или ложна, и проверьте ответ. Наведите указатель на мир (или нажмите на него), чтобы увидеть, какие миры достижимы из него.</p>
+    <p class="lead">Для каждой формулы решите, истинна она в мире <i>w</i><sub>1</sub> или ложна, и проверьте ответ. Наведите указатель на мир (или нажмите на него), чтобы увидеть, какие миры достижимы из него.</p>
     <div class="rules" id="rules"></div>
+    <div class="toolbar">
+      <button class="btn" id="new" type="button">Новый вариант</button>
+      <span class="vlabel" id="vlabel" aria-live="polite"></span>
+    </div>
   </header>
 
   <div class="workspace">
@@ -175,7 +202,19 @@ window.MathJax = {
       <div class="actions">
         <button class="btn primary" id="check" type="button">Проверить все</button>
         <button class="btn" id="reset" type="button">Начать заново</button>
+        <button class="btn" id="custom-open" type="button" aria-controls="custom" aria-expanded="false">Ввести свою формулу</button>
       </div>
+      <form class="custom" id="custom" hidden novalidate>
+        <label for="custom-input">Своя формула</label>
+        <div class="custom-row">
+          <input id="custom-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="custom-preview custom-hint">
+          <button class="btn primary" type="submit">Добавить</button>
+          <button class="btn" type="button" id="custom-cancel">Отмена</button>
+        </div>
+        <div class="palette" id="palette"></div>
+        <p class="preview" id="custom-preview" aria-live="polite"></p>
+        <p class="hint" id="custom-hint">Нажимайте кнопки или печатайте: ~ для ¬, &amp; для ∧, | или v для ∨, -&gt; для →, &lt;-&gt; для ↔, [] для □, &lt;&gt; для ◇, 0 для ⊥, 1 для ⊤. Без скобок ∧ связывает сильнее ∨, затем →, затем ↔.</p>
+      </form>
       <p id="summary" aria-live="polite"></p>
     </section>
   </div>
@@ -185,12 +224,13 @@ window.MathJax = {
 /* ================= Логика (без DOM) ================= */
 var Core = (function () {
   'use strict';
-  // миры w1…w7 — индексы 0…6
-  var MODEL = {
-    n: 7,
+  // миры w1…w7 — индексы 0…6; дерево: w1 → w2, w3; w2 → w4, w5; w3 → w6, w7
+  var SUCC = [[1, 2], [3, 4], [5, 6], [], [], [], []];
+  // модель из упражнения 8.19 (открывается без номера варианта)
+  var BOOK = {
+    n: 7, succ: SUCC,
     val: [{ p: true, q: false }, { p: false, q: true }, { p: true, q: true }, { p: true, q: false },
-      { p: true, q: true }, { p: true, q: true }, { p: true, q: true }],
-    succ: [[1, 2], [3, 4], [5, 6], [], [], [], []]
+      { p: true, q: true }, { p: true, q: true }, { p: true, q: true }]
   };
   // расположение как на рисунке в книге
   var LAYOUT = [
@@ -198,7 +238,7 @@ var Core = (function () {
     { x: 250, y: -250 }, { x: 250, y: -50 }, { x: 250, y: 48 }, { x: 250, y: 248 }
   ];
 
-  var P = { t: 'p' }, Q = { t: 'q' };
+  var AT = { p: { t: 'p' }, q: { t: 'q' } }, P = AT.p, Q = AT.q, BOT = { t: 'bot' }, TOP = { t: 'top' };
   function mk(t, a, b) { return { t: t, a: a, b: b }; }
   var BASE = [P, Q, mk('and', P, Q), mk('imp', P, Q), mk('imp', Q, P)];
   // группы по пять формул, как в упражнении: 1–5, 6–10, …, 31–35
@@ -217,21 +257,63 @@ var Core = (function () {
       return f;
     });
   });
+  var ALL = [];
+  GROUPS.forEach(function (g) { ALL = ALL.concat(g.formulas); });
 
-  function evalF(f, w) {
+  function evalF(m, f, w) {
     switch (f.t) {
-      case 'p': case 'q': return MODEL.val[w][f.t];
-      case 'and': return evalF(f.a, w) && evalF(f.b, w);
-      case 'imp': return !evalF(f.a, w) || evalF(f.b, w);
-      case 'box': return MODEL.succ[w].every(function (v) { return evalF(f.a, v); });
-      case 'dia': return MODEL.succ[w].some(function (v) { return evalF(f.a, v); });
+      case 'p': case 'q': return m.val[w][f.t];
+      case 'bot': return false;
+      case 'top': return true;
+      case 'not': return !evalF(m, f.a, w);
+      case 'and': return evalF(m, f.a, w) && evalF(m, f.b, w);
+      case 'or': return evalF(m, f.a, w) || evalF(m, f.b, w);
+      case 'imp': return !evalF(m, f.a, w) || evalF(m, f.b, w);
+      case 'iff': return evalF(m, f.a, w) === evalF(m, f.b, w);
+      case 'box': return m.succ[w].every(function (v) { return evalF(m, f.a, v); });
+      case 'dia': return m.succ[w].some(function (v) { return evalF(m, f.a, v); });
     }
     throw new Error('unknown ' + f.t);
   }
-  var OPS = { and: ['\\wedge', '∧'], imp: ['\\to', '→'] };
+  function answers(m) { return ALL.map(function (f) { return evalF(m, f, 0) ? 'T' : 'F'; }).join(''); }
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  // Задание того же вида: то же дерево, случайные p и q в мирах.
+  // Берём только модели, где ответы разнообразны: ложных формул 12–23 из 35
+  // и хотя бы в пяти группах из семи есть и истинные, и ложные.
+  function goodModel(m) {
+    var ok = ['p', 'q'].every(function (a) {
+      return m.val.some(function (v) { return v[a]; }) && m.val.some(function (v) { return !v[a]; });
+    });
+    if (!ok) return false;
+    var s = answers(m), nf = s.split('F').length - 1, mixed = 0;
+    for (var g = 0; g < 7; g++) { var x = s.slice(5 * g, 5 * g + 5); if (x.indexOf('T') >= 0 && x.indexOf('F') >= 0) mixed++; }
+    return nf >= 12 && nf <= 23 && mixed >= 5;
+  }
+  function genModel(seed) {
+    var rng = mulberry32((seed ^ 0x9E3779B9) >>> 0);
+    for (;;) {
+      var val = [];
+      for (var w = 0; w < 7; w++) val.push({ p: rng() < 0.5, q: rng() < 0.5 });
+      var m = { n: 7, succ: SUCC, val: val };
+      if (goodModel(m)) return m;
+    }
+  }
+
+  var OPS = { and: ['\\wedge', '∧'], or: ['\\vee', '∨'], imp: ['\\to', '→'], iff: ['\\leftrightarrow', '↔'] };
   function toTex(f, nested) {
     switch (f.t) {
       case 'p': case 'q': return f.t;
+      case 'bot': return '\\bot';
+      case 'top': return '\\top';
+      case 'not': return '\\neg ' + toTex(f.a, true);
       case 'box': return '\\Box ' + toTex(f.a, true);
       case 'dia': return '\\Diamond ' + toTex(f.a, true);
       default:
@@ -242,6 +324,9 @@ var Core = (function () {
   function toTxt(f, nested) {
     switch (f.t) {
       case 'p': case 'q': return f.t;
+      case 'bot': return '⊥';
+      case 'top': return '⊤';
+      case 'not': return '¬' + toTxt(f.a, true);
       case 'box': return '□' + toTxt(f.a, true);
       case 'dia': return '◇' + toTxt(f.a, true);
       default:
@@ -249,52 +334,164 @@ var Core = (function () {
         return nested ? '(' + s + ')' : s;
     }
   }
+  function size(f) { return 1 + (f.a ? size(f.a) : 0) + (f.b ? size(f.b) : 0); }
+  function hasModal(f) { return f.t === 'box' || f.t === 'dia' || (!!f.a && hasModal(f.a)) || (!!f.b && hasModal(f.b)); }
+  function atomsIn(f, acc) {
+    if (f.t === 'p' || f.t === 'q') acc[f.t] = true;
+    if (f.a) atomsIn(f.a, acc);
+    if (f.b) atomsIn(f.b, acc);
+    return acc;
+  }
 
-  // Разбор ответа: список абзацев, каждый — массив кусков (строка или {f} / {w} / {ws});
-  // абзацы с sub: true — пояснение для внутренней модальной формулы.
-  function explain(f, w, depth) {
-    var out = [], TV = function (b) { return b ? 'истинна' : 'ложна'; };
+  // Разбор ответа: список абзацев { depth, parts }, куски — строка или {f} / {w} / {ws}.
+  // Абзацы с depth > 0 поясняют подформулы в других мирах (или в том же мире).
+  function explain(m, f, w, depth) {
+    var out = [], TV = function (b) { return b ? 'истинна' : 'ложна'; }, res = evalF(m, f, w), parts;
+    depth = depth || 0;
     if (f.t === 'box' || f.t === 'dia') {
-      var s = MODEL.succ[w], inner = f.a, res = evalF(f, w);
+      var s = m.succ[w], inner = f.a;
       if (!s.length) {
-        out.push({ sub: depth > 0, parts: [{ w: w }, ' — тупик: из него не достижим ни один мир, поэтому ', { f: f },
+        out.push({ depth: depth, parts: [{ w: w }, ' — тупик: из него не достижим ни один мир, поэтому ', { f: f },
           f.t === 'box' ? ' истинна (проверять нечего).' : ' ложна (нет ни одного мира).'] });
         return out;
       }
-      var parts = ['Из ', { w: w }, ' достижимы ', { ws: s }, '. ', { f: inner }, ': '];
-      s.forEach(function (v, i) { parts.push(i ? ', в ' : 'в ', { w: v }, ' — ' + TV(evalF(inner, v))); });
+      parts = ['Из ', { w: w }, ' достижимы ', { ws: s }, '. ', { f: inner }, ': '];
+      s.forEach(function (v, i) { parts.push(i ? ', в ' : 'в ', { w: v }, ' — ' + TV(evalF(m, inner, v))); });
       parts.push('. ');
-      if (f.t === 'box') {
-        parts.push(res ? 'Во всех достижимых мирах истинна, значит ' : 'Есть достижимый мир, где она ложна, значит ');
-      } else {
-        parts.push(res ? 'Есть достижимый мир, где она истинна, значит ' : 'Ни в одном достижимом мире она не истинна, значит ');
-      }
+      if (f.t === 'box') parts.push(res ? 'Во всех достижимых мирах истинна, значит ' : 'Есть достижимый мир, где она ложна, значит ');
+      else parts.push(res ? 'Есть достижимый мир, где она истинна, значит ' : 'Ни в одном достижимом мире она не истинна, значит ');
       parts.push({ f: f }, ' в ', { w: w }, ' ' + TV(res) + '.');
-      out.push({ sub: depth > 0, parts: parts });
-      if (inner.t === 'box' || inner.t === 'dia') {
-        s.forEach(function (v) { out = out.concat(explain(inner, v, depth + 1)); });
-      }
+      out.push({ depth: depth, parts: parts });
+      if (hasModal(inner)) s.forEach(function (v) { out = out.concat(explain(m, inner, v, depth + 1)); });
       return out;
     }
-    var atoms = ['p', 'q'];
-    var ap = ['В ', { w: w }, ': '];
-    atoms.forEach(function (a, i) { ap.push(i ? ', ' : '', { f: { t: a } }, ' — ' + TV(MODEL.val[w][a])); });
-    if (f.t === 'p' || f.t === 'q') ap.push('.');
-    else ap.push(', поэтому ', { f: f }, ' ' + TV(evalF(f, w)) + '.');
-    out.push({ sub: depth > 0, parts: ap });
+    if (f.t === 'bot' || f.t === 'top') {
+      out.push({ depth: depth, parts: [{ f: f }, f.t === 'bot' ? ' ложна в любом мире.' : ' истинна в любом мире.'] });
+      return out;
+    }
+    parts = ['В ', { w: w }, ': '];
+    if (!hasModal(f)) {
+      // без модальностей: значения переменных в этом мире
+      var atoms = Object.keys(atomsIn(f, {})).sort();
+      if (!atoms.length) return [{ depth: depth, parts: parts.concat([{ f: f }, ' ' + TV(res) + '.']) }];
+      atoms.forEach(function (a, i) { parts.push(i ? ', ' : '', { f: AT[a] }, ' — ' + TV(m.val[w][a])); });
+      if (f.t === 'p' || f.t === 'q') parts.push('.');
+      else parts.push(', поэтому ', { f: f }, ' ' + TV(res) + '.');
+      out.push({ depth: depth, parts: parts });
+      return out;
+    }
+    // связка над модальными подформулами: значения её частей в этом мире
+    var kids = f.b ? [f.a, f.b] : [f.a];
+    kids.forEach(function (g, i) { parts.push(i ? ', ' : '', { f: g }, ' — ' + TV(evalF(m, g, w))); });
+    parts.push(', поэтому ', { f: f }, ' ' + TV(res) + '.');
+    out.push({ depth: depth, parts: parts });
+    kids.forEach(function (g) { if (hasModal(g)) out = out.concat(explain(m, g, w, depth + 1)); });
     return out;
   }
 
-  function selfTest() {
-    // ответы, проверенные вручную по рисунку
-    var want = 'TFFFT' + 'FTFTF' + 'TTTTT' + 'TTTTT' + 'TFFFT' + 'TTTTT' + 'TTTTT';
-    var got = '';
-    GROUPS.forEach(function (g) { g.formulas.forEach(function (f) { got += evalF(f, 0) ? 'T' : 'F'; }); });
-    if (got !== want) throw new Error('selfTest: ' + got + ' != ' + want);
-    return got.length;
+  // ----- ввод своей формулы -----
+  var INPUT_TOKENS = [
+    ['<->', 'iff'], ['<=>', 'iff'], ['↔', 'iff'], ['->', 'imp'], ['=>', 'imp'], ['→', 'imp'],
+    ['[]', 'box'], ['□', 'box'], ['<>', 'dia'], ['◇', 'dia'], ['◊', 'dia'],
+    ['~', 'not'], ['!', 'not'], ['¬', 'not'], ['-', 'not'],
+    ['/\\', 'and'], ['&', 'and'], ['∧', 'and'], ['^', 'and'],
+    ['_|_', 'bot'], ['\\/', 'or'], ['|', 'or'], ['∨', 'or'], ['v', 'or'], ['V', 'or'],
+    ['(', '('], [')', ')'], ['⊥', 'bot'], ['0', 'bot'], ['⊤', 'top'], ['1', 'top'],
+    ['p', 'p'], ['q', 'q'], ['r', 'r'], ['s', 's']
+  ].sort(function (a, b) { return b[0].length - a[0].length; });
+  var MAX_INPUT_TOKENS = 200, MAX_INPUT_SIZE = 30;
+
+  // возвращает { f } или { err: код, ch, pos }
+  function parseFormula(str) {
+    var toks = [], i = 0, j;
+    while (i < str.length) {
+      if (/\s/.test(str[i])) { i++; continue; }
+      for (j = 0; j < INPUT_TOKENS.length; j++) if (str.substr(i, INPUT_TOKENS[j][0].length) === INPUT_TOKENS[j][0]) break;
+      if (j === INPUT_TOKENS.length) return { err: 'char', ch: str[i], pos: i + 1 };
+      toks.push({ k: INPUT_TOKENS[j][1], pos: i + 1, s: INPUT_TOKENS[j][0] });
+      i += INPUT_TOKENS[j][0].length;
+    }
+    if (!toks.length) return { err: 'empty' };
+    if (toks.length > MAX_INPUT_TOKENS) return { err: 'long' };
+    var k = 0;
+    function fail(code) {
+      var t = toks[k];
+      throw t ? { err: code || 'tok', ch: t.s, pos: t.pos } : { err: 'end' };
+    }
+    function unary() {
+      var t = toks[k];
+      if (!t) fail();
+      if (t.k === 'not' || t.k === 'box' || t.k === 'dia') { k++; return mk(t.k, unary()); }
+      if (t.k === '(') {
+        k++;
+        var e = iff();
+        if (!toks[k]) throw { err: 'paren' };
+        if (toks[k].k !== ')') fail();
+        k++;
+        return e;
+      }
+      if (t.k === 'r' || t.k === 's') throw { err: 'atom', ch: t.s, pos: t.pos };
+      if (AT[t.k]) { k++; return AT[t.k]; }
+      if (t.k === 'bot') { k++; return BOT; }
+      if (t.k === 'top') { k++; return TOP; }
+      fail();
+    }
+    function chain(next, op) {
+      var e = next();
+      while (toks[k] && toks[k].k === op) { k++; e = mk(op, e, next()); }
+      return e;
+    }
+    function conj() { return chain(unary, 'and'); }
+    function disj() { return chain(conj, 'or'); }
+    function imp() {
+      var e = disj();
+      if (toks[k] && toks[k].k === 'imp') { k++; return mk('imp', e, imp()); }
+      return e;
+    }
+    function iff() { return chain(imp, 'iff'); }
+    try {
+      var f = iff();
+      if (k < toks.length) fail(toks[k].k === ')' ? 'extra' : 'tok');
+      if (size(f) > MAX_INPUT_SIZE) return { err: 'long' };
+      return { f: f };
+    } catch (e) {
+      if (e && e.err) return e;
+      throw e;
+    }
   }
 
-  return { MODEL: MODEL, LAYOUT: LAYOUT, GROUPS: GROUPS, evalF: evalF, toTex: toTex, toTxt: toTxt, explain: explain, selfTest: selfTest };
+  function selfTest() {
+    var n = 0;
+    function eq(a, b, what) { n++; if (a !== b) throw new Error('selfTest ' + what + ': ' + a + ' != ' + b); }
+    // ответы к упражнению 8.19, проверенные вручную по рисунку
+    eq(answers(BOOK), 'TFFFT' + 'FTFTF' + 'TTTTT' + 'TTTTT' + 'TFFFT' + 'TTTTT' + 'TTTTT', 'book');
+    // новые варианты: воспроизводимы и подходят под условия
+    for (var s = 1; s <= 300; s++) {
+      var m = genModel(s);
+      eq(goodModel(m), true, 'good ' + s);
+      eq(answers(genModel(s)), answers(m), 'repeat ' + s);
+    }
+    // ввод: запись формулы читается обратно в ту же формулу
+    ALL.forEach(function (f) { eq(toTxt(parseFormula(toTxt(f, false)).f, false), toTxt(f, false), 'parse'); });
+    [['[]p -> <>q', '□p → ◇q'], ['~(p & q) v 1', '¬(p ∧ q) ∨ ⊤'], ['p <-> <>[]0', 'p ↔ ◇□⊥'], ['p & q v p', '(p ∧ q) ∨ p']].forEach(function (x) {
+      eq(toTxt(parseFormula(x[0]).f, false), x[1], 'input ' + x[0]);
+    });
+    eq(parseFormula('p & r').err, 'atom', 'atom r');
+    eq(parseFormula('(p').err, 'paren', 'paren');
+    eq(parseFormula('').err, 'empty', 'empty');
+    // ↔, ¬, ⊥ и тупики
+    eq(evalF(BOOK, parseFormula('[]<>1').f, 0), true, '□◇⊤ at w1');
+    eq(evalF(BOOK, parseFormula('[][]<>1').f, 0), false, '□□◇⊤ at w1');
+    eq(evalF(BOOK, parseFormula('<>[]0').f, 0), false, '◇□⊥ at w1');
+    eq(evalF(BOOK, parseFormula('[][][]0').f, 0), true, '□□□⊥ at w1');
+    eq(evalF(BOOK, parseFormula('~q <-> p').f, 0), true, '¬q ↔ p');
+    return n;
+  }
+
+  return {
+    BOOK: BOOK, LAYOUT: LAYOUT, GROUPS: GROUPS, genModel: genModel, evalF: evalF, toTex: toTex, toTxt: toTxt,
+    explain: explain, parseFormula: parseFormula, selfTest: selfTest
+  };
 })();
 if (typeof module !== 'undefined') module.exports = Core;
 </script>
@@ -302,8 +499,9 @@ if (typeof module !== 'undefined') module.exports = Core;
 <script>
 (function () {
   'use strict';
-  var M = Core.MODEL, SVGNS = 'http://www.w3.org/2000/svg';
+  var SVGNS = 'http://www.w3.org/2000/svg';
   var mathOn = !!window.__mjReady;
+  var M = Core.BOOK, seed = 0;   // seed 0 — модель из упражнения
 
   function svgEl(tag, attrs) {
     var e = document.createElementNS(SVGNS, tag);
@@ -425,6 +623,14 @@ if (typeof module !== 'undefined') module.exports = Core;
     }
     var pad = 10;
     svg.setAttribute('viewBox', [fx(minX - pad), fx(minY - pad), fx(maxX - minX + 2 * pad), fx(maxY - minY + 2 * pad)].join(' '));
+    // текстовое описание для экранных читалок
+    var desc = [];
+    for (i = 0; i < M.n; i++) {
+      var at = ['p', 'q'].filter(function (a) { return M.val[i][a]; });
+      desc.push(worldTxt(i) + (at.length ? ' (' + at.join(', ') + ')' : ' (переменные ложны)') +
+        (M.succ[i].length ? ' → ' + M.succ[i].map(worldTxt).join(', ') : ''));
+    }
+    svg.setAttribute('aria-label', 'Модель Крипке: ' + desc.join('; '));
     applyReach();
   }
 
@@ -480,10 +686,16 @@ if (typeof module !== 'undefined') module.exports = Core;
   })();
 
   /* ----- формулы ----- */
+  // группы: семь из упражнения и «Свои формулы» (gi === 7)
+  var CUSTOM = Core.GROUPS.length;
   var rows = [];   // { f, truth, answer: null|true|false, checked, open, gi }
-  Core.GROUPS.forEach(function (g, gi) {
-    g.formulas.forEach(function (f) { rows.push({ f: f, truth: Core.evalF(f, 0), answer: null, checked: false, open: false, gi: gi }); });
-  });
+  var custom = []; // свои формулы: остаются при смене варианта
+  function newRow(f, gi) { return { f: f, truth: Core.evalF(M, f, 0), answer: null, checked: false, open: false, gi: gi }; }
+  function buildRows() {
+    rows = [];
+    Core.GROUPS.forEach(function (g, gi) { g.formulas.forEach(function (f) { rows.push(newRow(f, gi)); }); });
+    custom.forEach(function (f) { rows.push(newRow(f, CUSTOM)); });
+  }
 
   function renderRules() {
     var box = document.getElementById('rules');
@@ -500,58 +712,79 @@ if (typeof module !== 'undefined') module.exports = Core;
     box.appendChild(p1); box.appendChild(p2);
   }
 
+  function groupInfo(gi) {
+    return gi < CUSTOM ? Core.GROUPS[gi] : { title: 'Свои формулы', note: '' };
+  }
   function renderGroups() {
     var host = document.getElementById('groups');
     host.innerHTML = '';
-    var k = 0;
-    Core.GROUPS.forEach(function (g, gi) {
+    var ngroups = custom.length ? CUSTOM + 1 : CUSTOM;
+    for (var gi = 0; gi < ngroups; gi++) {
+      var idx = [];
+      rows.forEach(function (r, ri) { if (r.gi === gi) idx.push(ri); });
+      var g = groupInfo(gi), first = idx[0] + 1, last = idx[idx.length - 1] + 1;
       var sec = document.createElement('section');
       sec.className = 'group';
       var h = document.createElement('h2');
-      h.textContent = (k + 1) + '–' + (k + 5) + '. ' + g.title;
-      var note = document.createElement('p');
-      note.className = 'gnote'; note.textContent = g.note;
+      h.textContent = (gi < CUSTOM ? first + '–' + last + '. ' : '') + g.title;
+      sec.appendChild(h);
+      if (g.note) {
+        var note = document.createElement('p');
+        note.className = 'gnote'; note.textContent = g.note;
+        sec.appendChild(note);
+      }
       var ul = document.createElement('ul');
       ul.className = 'rows';
-      g.formulas.forEach(function () {
-        var ri = k++, r = rows[ri];
-        var li = document.createElement('li');
-        li.className = 'row' + (r.checked && r.answer !== null ? (r.answer === r.truth ? ' ok' : ' bad') : '');
-        li.id = 'row-' + ri;
-        var main = document.createElement('div'); main.className = 'rowmain';
-        var num = document.createElement('span'); num.className = 'num'; num.textContent = (ri + 1) + '.';
-        var fm = document.createElement('span'); fm.className = 'formula'; fm.appendChild(fSpan(r.f));
-        var tf = document.createElement('span'); tf.className = 'tf'; tf.setAttribute('role', 'radiogroup');
-        tf.setAttribute('aria-label', 'Формула ' + (ri + 1) + ' в w1');
-        [[true, 'истинна'], [false, 'ложна']].forEach(function (o) {
-          var lab = document.createElement('label');
-          var inp = document.createElement('input');
-          inp.type = 'radio'; inp.name = 'f' + ri; inp.checked = r.answer === o[0];
-          inp.addEventListener('change', function () {
-            r.answer = o[0]; r.checked = false; r.open = false;
-            renderRow(ri);
-            renderSummary();
-          });
-          lab.appendChild(inp); lab.appendChild(document.createTextNode(o[1]));
-          tf.appendChild(lab);
-        });
-        main.appendChild(num); main.appendChild(fm); main.appendChild(tf);
-        li.appendChild(main);
-        li.appendChild(statusEl(ri));
-        li.appendChild(whyEl(ri));
-        ul.appendChild(li);
-      });
+      idx.forEach(function (ri) { ul.appendChild(rowEl(ri)); });
+      sec.appendChild(ul);
       var ga = document.createElement('div'); ga.className = 'gactions';
       var gb = document.createElement('button');
-      gb.type = 'button'; gb.className = 'btn sm'; gb.textContent = 'Проверить формулы ' + (k - 4) + '–' + k;
-      gb.addEventListener('click', function () { check(gi); });
+      gb.type = 'button'; gb.className = 'btn sm';
+      gb.textContent = idx.length > 1 ? 'Проверить формулы ' + first + '–' + last : 'Проверить формулу ' + first;
+      gb.addEventListener('click', check.bind(null, gi));
       var gs = document.createElement('span'); gs.className = 'gsum'; gs.id = 'gsum-' + gi; gs.setAttribute('aria-live', 'polite');
       ga.appendChild(gb); ga.appendChild(gs);
-      sec.appendChild(h); sec.appendChild(note); sec.appendChild(ul); sec.appendChild(ga);
+      sec.appendChild(ga);
       host.appendChild(sec);
-    });
+    }
     renderSummary();
   }
+  function rowEl(ri) {
+    var r = rows[ri];
+    var li = document.createElement('li');
+    li.id = 'row-' + ri;
+    var main = document.createElement('div'); main.className = 'rowmain';
+    var num = document.createElement('span'); num.className = 'num'; num.textContent = (ri + 1) + '.';
+    var fm = document.createElement('span'); fm.className = 'formula'; fm.appendChild(fSpan(r.f));
+    var tf = document.createElement('span'); tf.className = 'tf'; tf.setAttribute('role', 'radiogroup');
+    tf.setAttribute('aria-label', 'Формула ' + (ri + 1) + ' в w1');
+    [[true, 'истинна'], [false, 'ложна']].forEach(function (o) {
+      var lab = document.createElement('label');
+      var inp = document.createElement('input');
+      inp.type = 'radio'; inp.name = 'f' + ri; inp.checked = r.answer === o[0];
+      inp.addEventListener('change', function () {
+        r.answer = o[0]; r.checked = false; r.open = false;
+        renderRow(ri);
+        renderSummary();
+      });
+      lab.appendChild(inp); lab.appendChild(document.createTextNode(o[1]));
+      tf.appendChild(lab);
+    });
+    main.appendChild(num); main.appendChild(fm); main.appendChild(tf);
+    if (r.gi === CUSTOM) {
+      var rm = document.createElement('button');
+      rm.type = 'button'; rm.className = 'rm'; rm.textContent = '×';
+      rm.setAttribute('aria-label', 'Удалить формулу ' + (ri + 1));
+      rm.addEventListener('click', function () { removeCustom(ri); });
+      main.appendChild(rm);
+    }
+    li.appendChild(main);
+    li.appendChild(statusEl(ri));
+    li.appendChild(whyEl(ri));
+    li.className = rowClass(r);
+    return li;
+  }
+  function rowClass(r) { return 'row' + (r.checked && r.answer !== null ? (r.answer === r.truth ? ' ok' : ' bad') : ''); }
 
   function statusEl(ri) {
     var r = rows[ri], st = document.createElement('div');
@@ -577,9 +810,9 @@ if (typeof module !== 'undefined') module.exports = Core;
     var r = rows[ri], box = document.createElement('div');
     box.className = 'why'; box.id = 'why-' + ri; box.hidden = !r.open;
     if (!r.open) return box;
-    Core.explain(r.f, 0, 0).forEach(function (para) {
+    Core.explain(M, r.f, 0, 0).forEach(function (para) {
       var p = document.createElement('p');
-      if (para.sub) p.className = 'sub';
+      if (para.depth) { p.className = 'sub'; p.style.marginLeft = (para.depth - 1) * 1.1 + 0.2 + 'rem'; }
       para.parts.forEach(function (x) {
         if (typeof x === 'string') p.appendChild(document.createTextNode(x));
         else if (x.f) p.appendChild(fSpan(x.f));
@@ -592,7 +825,7 @@ if (typeof module !== 'undefined') module.exports = Core;
   }
   function renderRow(ri) {
     var r = rows[ri], li = document.getElementById('row-' + ri);
-    li.className = 'row' + (r.checked && r.answer !== null ? (r.answer === r.truth ? ' ok' : ' bad') : '');
+    li.className = rowClass(r);
     li.replaceChild(statusEl(ri), li.querySelector('.status'));
     li.replaceChild(whyEl(ri), li.querySelector('.why'));
   }
@@ -604,13 +837,13 @@ if (typeof module !== 'undefined') module.exports = Core;
     renderSummary();
   }
   function renderSummary() {
-    Core.GROUPS.forEach(function (g, gi) {
+    Array.prototype.forEach.call(document.querySelectorAll('.gsum'), function (el) {
+      var gi = +el.id.slice(5);
       var mine = rows.filter(function (r) { return r.gi === gi; });
-      var el = document.getElementById('gsum-' + gi);
       if (!mine.some(function (r) { return r.checked; })) { el.textContent = ''; el.className = 'gsum'; return; }
       var good = mine.filter(function (r) { return r.checked && r.answer === r.truth; }).length;
-      el.textContent = 'Верно: ' + good + ' из 5';
-      el.className = 'gsum res ' + (good === 5 ? 'ok' : 'muted');
+      el.textContent = 'Верно: ' + good + ' из ' + mine.length;
+      el.className = 'gsum res ' + (good === mine.length ? 'ok' : 'muted');
     });
     var sum = document.getElementById('summary');
     var done = rows.filter(function (r) { return r.checked; });
@@ -623,19 +856,133 @@ if (typeof module !== 'undefined') module.exports = Core;
     sum.appendChild(s);
   }
 
+  /* ----- свои формулы ----- */
+  function readInput() {
+    var r = Core.parseFormula(document.getElementById('custom-input').value);
+    if (r.err) {
+      var msg = {
+        empty: 'Введите формулу.', long: 'Слишком длинная формула.', end: 'Формула обрывается.', paren: 'Не хватает закрывающей скобки.'
+      }[r.err];
+      if (!msg) {
+        msg = r.err === 'char' ? 'Непонятный символ «' + r.ch + '» (позиция ' + r.pos + ').'
+          : r.err === 'extra' ? 'Лишняя «)» (позиция ' + r.pos + ').'
+          : r.err === 'atom' ? 'Переменной ' + r.ch + ' нет в этой модели (есть p, q).'
+          : 'Перед «' + r.ch + '» чего-то не хватает (позиция ' + r.pos + ').';
+      }
+      return { msg: msg, empty: r.err === 'empty' };
+    }
+    var t = Core.toTxt(r.f, false);
+    if (rows.some(function (x) { return Core.toTxt(x.f, false) === t; })) return { msg: 'Такая формула уже есть в списке.' };
+    return { f: r.f };
+  }
+  function updatePreview() {
+    var pv = document.getElementById('custom-preview');
+    if (document.getElementById('custom').hidden) return;
+    pv.innerHTML = '';
+    var r = readInput();
+    if (r.empty) return;
+    if (r.msg) {
+      var e = document.createElement('span'); e.className = 'err'; e.textContent = r.msg;
+      pv.appendChild(e);
+      return;
+    }
+    pv.appendChild(document.createTextNode('Будет добавлено: '));
+    pv.appendChild(fSpan(r.f));
+  }
+  function renderPalette() {
+    var pal = document.getElementById('palette');
+    pal.innerHTML = '';
+    ['¬', '∧', '∨', '→', '↔', '□', '◇', '⊥', '⊤', '(', ')', 'p', 'q'].forEach(function (c) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = c;
+      if (c === 'p' || c === 'q') b.className = 'atom';
+      b.addEventListener('click', function () {
+        var inp = document.getElementById('custom-input');
+        var a = inp.selectionStart == null ? inp.value.length : inp.selectionStart;
+        var z = inp.selectionEnd == null ? a : inp.selectionEnd;
+        inp.value = inp.value.slice(0, a) + c + inp.value.slice(z);
+        inp.focus();
+        inp.setSelectionRange(a + c.length, a + c.length);
+        updatePreview();
+      });
+      pal.appendChild(b);
+    });
+  }
+  function setCustomOpen(open) {
+    var form = document.getElementById('custom'), btn = document.getElementById('custom-open');
+    form.hidden = !open;
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) { updatePreview(); document.getElementById('custom-input').focus(); }
+    else btn.focus();
+  }
+  function removeCustom(ri) {
+    custom.splice(ri - CUSTOM * 5, 1);
+    rows.splice(ri, 1);
+    renderGroups();
+    var next = document.querySelectorAll('#groups .rm')[ri - CUSTOM * 5] || document.getElementById('custom-open');
+    next.focus();
+  }
+  document.getElementById('custom-open').addEventListener('click', function () {
+    setCustomOpen(document.getElementById('custom').hidden);
+  });
+  document.getElementById('custom-cancel').addEventListener('click', function () { setCustomOpen(false); });
+  document.getElementById('custom-input').addEventListener('input', updatePreview);
+  document.getElementById('custom-input').addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') setCustomOpen(false);
+  });
+  document.getElementById('custom').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var r = readInput(), pv = document.getElementById('custom-preview');
+    if (!r.f) {
+      pv.innerHTML = '';
+      var er = document.createElement('span'); er.className = 'err'; er.textContent = r.msg;
+      pv.appendChild(er);
+      return;
+    }
+    custom.push(r.f);
+    rows.push(newRow(r.f, CUSTOM));
+    renderGroups();
+    var inp = document.getElementById('custom-input');
+    inp.value = '';
+    pv.textContent = 'Добавлено как формула ' + rows.length + '.';
+    inp.focus();
+  });
+
+  /* ----- варианты ----- */
+  function load(s) {
+    seed = s;
+    M = s ? Core.genModel(s) : Core.BOOK;
+    hover = -1; pinned = -1;
+    buildRows();
+    document.getElementById('vlabel').textContent = s ? 'Вариант ' + s : '';
+    try { history.replaceState(null, '', s ? '#v=' + s : location.pathname + location.search); } catch (e) { /* адрес не меняется */ }
+    drawModel();
+    renderGroups();
+  }
+  function seedFromHash() {
+    var mm = /v=(\d{1,5})\b/.exec(location.hash || '');
+    return mm && +mm[1] >= 1 ? +mm[1] : 0;
+  }
+  document.getElementById('new').addEventListener('click', function () {
+    var s;
+    do { s = 1 + Math.floor(Math.random() * 99999); } while (s === seed);
+    load(s);
+  });
+  window.addEventListener('hashchange', function () { var s = seedFromHash(); if (s !== seed) load(s); });
+
   document.getElementById('check').addEventListener('click', function () { check(); });
   document.getElementById('reset').addEventListener('click', function () {
     rows.forEach(function (r) { r.answer = null; r.checked = false; r.open = false; });
     renderGroups();
   });
 
-  function renderAll() { renderRules(); drawModel(); renderGroups(); }
   window.__onMathReady = function () {
     if (mathOn) return;
     mathOn = true;
-    renderAll();
+    renderRules(); drawModel(); renderGroups();
   };
-  renderAll();
+  renderRules();
+  renderPalette();
+  load(seedFromHash());
 })();
 </script>
 </body>
