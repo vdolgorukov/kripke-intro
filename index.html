@@ -237,6 +237,35 @@ var Core = (function () {
     { x: 0, y: 0 }, { x: 150, y: -150 }, { x: 150, y: 148 },
     { x: 250, y: -250 }, { x: 250, y: -50 }, { x: 250, y: 48 }, { x: 250, y: 248 }
   ];
+  BOOK.layout = LAYOUT;
+
+  // Формы дерева для новых вариантов: сколько потомков у каждого мира, достижимого из w1.
+  // [2, 2] — дерево из книги; в остальных у какого-то мира три потомка (всего 7–10 миров).
+  var SHAPES = [[2, 2], [2, 3], [3, 2], [3, 3], [2, 2, 2]];
+  // миры нумеруются по уровням: w1, затем его потомки, затем их потомки
+  function makeTree(kids) {
+    var succ = [[]], next = 1 + kids.length;
+    kids.forEach(function (k, i) {
+      succ[0].push(1 + i);
+      var c = [];
+      for (var j = 0; j < k; j++) c.push(next++);
+      succ[1 + i] = c;
+    });
+    for (var w = 1 + kids.length; w < next; w++) succ[w] = [];
+    return succ;
+  }
+  // рисунок: листья в столбик, родитель — посередине между своими потомками
+  function makeLayout(succ) {
+    var STEP = 100, GAP = 115, pos = [], y = 0;
+    succ[0].forEach(function (u, i) {
+      if (i) y += GAP - STEP;
+      var ys = succ[u].map(function (v) { pos[v] = { x: 250, y: y }; y += STEP; return pos[v].y; });
+      pos[u] = { x: 150, y: (ys[0] + ys[ys.length - 1]) / 2 };
+    });
+    var ws = succ[0].map(function (u) { return pos[u].y; });
+    pos[0] = { x: 0, y: (ws[0] + ws[ws.length - 1]) / 2 };
+    return pos;
+  }
 
   var AT = { p: { t: 'p' }, q: { t: 'q' } }, P = AT.p, Q = AT.q, BOT = { t: 'bot' }, TOP = { t: 'top' };
   function mk(t, a, b) { return { t: t, a: a, b: b }; }
@@ -285,7 +314,7 @@ var Core = (function () {
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
   }
-  // Задание того же вида: то же дерево, случайные p и q в мирах.
+  // Задание того же вида: дерево одной из форм SHAPES, случайные p и q в мирах.
   // Берём только модели, где ответы разнообразны: ложных формул 12–23 из 35
   // и хотя бы в пяти группах из семи есть и истинные, и ложные.
   function goodModel(m) {
@@ -299,10 +328,13 @@ var Core = (function () {
   }
   function genModel(seed) {
     var rng = mulberry32((seed ^ 0x9E3779B9) >>> 0);
+    var kids = SHAPES[Math.floor(rng() * SHAPES.length)];
+    var book = kids.join() === '2,2', succ = book ? SUCC : makeTree(kids);
+    var layout = book ? LAYOUT : makeLayout(succ);
     for (;;) {
       var val = [];
-      for (var w = 0; w < 7; w++) val.push({ p: rng() < 0.5, q: rng() < 0.5 });
-      var m = { n: 7, succ: SUCC, val: val };
+      for (var w = 0; w < succ.length; w++) val.push({ p: rng() < 0.5, q: rng() < 0.5 });
+      var m = { n: succ.length, succ: succ, val: val, layout: layout };
       if (goodModel(m)) return m;
     }
   }
@@ -466,11 +498,18 @@ var Core = (function () {
     // ответы к упражнению 8.19, проверенные вручную по рисунку
     eq(answers(BOOK), 'TFFFT' + 'FTFTF' + 'TTTTT' + 'TTTTT' + 'TFFFT' + 'TTTTT' + 'TTTTT', 'book');
     // новые варианты: воспроизводимы и подходят под условия
+    var seen = {};
     for (var s = 1; s <= 300; s++) {
       var m = genModel(s);
       eq(goodModel(m), true, 'good ' + s);
       eq(answers(genModel(s)), answers(m), 'repeat ' + s);
+      eq(m.layout.length, m.n, 'layout ' + s);
+      seen[m.succ.map(function (x) { return x.length; }).join('')] = true;
     }
+    // встречаются все формы, в том числе w1 → три мира и мир с тремя потомками
+    eq(Object.keys(seen).sort().join(' '), '2220000 22300000 23200000 233000000 3222000000', 'shapes');
+    var t = makeTree([3, 2, 2]);
+    eq(JSON.stringify(t), '[[1,2,3],[4,5,6],[7,8],[9,10],[],[],[],[],[],[],[]]', 'tree');
     // ввод: запись формулы читается обратно в ту же формулу
     ALL.forEach(function (f) { eq(toTxt(parseFormula(toTxt(f, false)).f, false), toTxt(f, false), 'parse'); });
     [['[]p -> <>q', '□p → ◇q'], ['~(p & q) v 1', '¬(p ∧ q) ∨ ⊤'], ['p <-> <>[]0', 'p ↔ ◇□⊥'], ['p & q v p', '(p ∧ q) ∨ p']].forEach(function (x) {
@@ -575,7 +614,7 @@ if (typeof module !== 'undefined') module.exports = Core;
 
   /* ----- рисунок ----- */
   function drawModel() {
-    var pos = Core.LAYOUT, R = 30, ARROW = 4, svg = document.getElementById('kripke');
+    var pos = M.layout, R = 30, ARROW = 4, svg = document.getElementById('kripke');
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     var defs = svgEl('defs');
     var marker = svgEl('marker', { id: 'ah', viewBox: '-6 -5 11 10', refX: 0, refY: 0, markerWidth: 11, markerHeight: 10, markerUnits: 'userSpaceOnUse', orient: 'auto', overflow: 'visible' });
